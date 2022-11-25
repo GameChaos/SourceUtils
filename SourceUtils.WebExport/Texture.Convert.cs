@@ -164,6 +164,11 @@ namespace SourceUtils.WebExport
                     break;
                 case TextureFormat.I8:
                     readSettings.Format = MagickFormat.Gray;
+                    readSettings.PixelStorage = new PixelStorageSettings
+                    {
+                        StorageType = StorageType.Char,
+                        Mapping = "P"
+                    };
                     break;
                 case TextureFormat.IA88:
                     readSettings.Format = MagickFormat.Gray;
