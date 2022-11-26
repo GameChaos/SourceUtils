@@ -196,6 +196,9 @@ namespace SourceUtils.WebExport
                 case TextureFormat.RGBA8888:
                     readSettings.PixelStorage = new PixelStorageSettings(StorageType.Char, "RGBA");
                     break;
+                case TextureFormat.RGBA16161616F:
+                    readSettings.PixelStorage = new PixelStorageSettings(StorageType.Char, "RGBA");
+                    break;
                 default:
                     throw new NotImplementedException();
             }
@@ -216,6 +219,31 @@ namespace SourceUtils.WebExport
                         _sPixelBuffer[i * 3 + 2] = (byte)(((pixel >> 11) & 31) / 31f * 255f);
                     }
                     break;
+            }
+            
+            // Convert half float to float
+            if (vtf.Header.HiResFormat == TextureFormat.RGBA16161616F)
+            {
+                if (mip == 0)
+                {
+                    mip = mip;
+                }
+                for (var i = 0; i < width * height * 4; i++)
+                {
+                    var half = (ushort)(_sPixelBuffer[i * 2] | (_sPixelBuffer[i * 2 + 1] << 8));
+
+                    // half to float: https://stackoverflow.com/a/60047308
+                    int e = (half & 0x7C00) >> 10; // exponent
+                    int m = (half & 0x03FF) << 13; // mantissa
+                    int v = BitConverter.ToInt32(BitConverter.GetBytes((float)m), 0) >> 23; // evil log2 bit hack to count leading zeros in denormalized format
+                    int floatBits = (half & 0x8000) << 16;
+                    floatBits |= Convert.ToInt32(e != 0) * ((e + 112) << 23 | m);
+                    floatBits |= (Convert.ToInt32(e == 0) & Convert.ToInt32(m != 0)) * ((v - 37) << 23 | ((m << (150 - v)) & 0x007FE000));
+
+                    var f = BitConverter.ToSingle(BitConverter.GetBytes(floatBits), 0) * 255.0f;
+
+                    _sPixelBuffer[i] = (byte)Math.Min(Math.Max(f, 0.0f), 255.0f);
+                }
             }
 
             var img = new MagickImage( _sPixelBuffer, readSettings );
