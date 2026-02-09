@@ -1,10 +1,6 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Runtime.InteropServices;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace SourceUtils
 {
@@ -20,6 +16,20 @@ namespace SourceUtils
                 public readonly ushort Version;
                 public readonly int FileOffset;
                 public readonly int FileLength;
+
+                public Item(int id, ushort flags, ushort version, int offset, int length)
+                {
+                    Id = id;
+                    Flags = flags;
+                    Version = version;
+                    FileOffset = offset;
+                    FileLength = length;
+                }
+
+                public Item WithLength( int length )
+                {
+                    return new Item( Id, Flags, Version, FileOffset, length );
+                }
             }
 
             private readonly ValveBspFile _bspFile;
@@ -75,10 +85,42 @@ namespace SourceUtils
 
                     _items = new Dictionary<string, Item>();
 
+                    var bspStream = GetBspStream( _bspFile );
+
                     using ( var reader = new BinaryReader( _bspFile.GetLumpStream( LumpType ) ) )
                     {
                         var count = reader.ReadInt32();
-                        LumpReader<Item>.ReadLumpFromStream( reader.BaseStream, count, item => _items.Add( GetIdString( item.Id ), item ) );
+
+                        if ( count == 0 ) return;
+
+                        var items = LumpReader<Item>.ReadLumpFromStream( reader.BaseStream, count );
+
+                        var isCompressed = items[items.Length - 1].Id == 0;
+
+                        if ( !isCompressed )
+                        {
+                            foreach ( var item in items )
+                            {
+                                _items.Add( GetIdString( item.Id ), item );
+                            }
+
+                            return;
+                        }
+
+                        // Wiki:
+                        //   The compressed size of a game lump can be determined by subtracting the current game
+                        //   lump's offset with that of the next entry. For this reason, when game lumps are compressed
+                        //   the last game lump is always an empty dummy which only contains the offset. 
+
+                        count -= 1;
+
+                        for ( var i = 0; i < count; i++ )
+                        {
+                            var item = items[i];
+                            var length = items[i + 1].FileOffset - item.FileOffset;
+
+                            _items.Add( GetIdString( item.Id ), item.WithLength( length ) );
+                        }
                     }
                 }
             }

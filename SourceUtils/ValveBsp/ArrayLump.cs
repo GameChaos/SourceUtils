@@ -14,7 +14,7 @@ namespace SourceUtils
             public LumpType LumpType { get; }
             public int Length { get; }
 
-            protected virtual Type StructType => typeof(T);
+            protected abstract Type StructType { get; }
 
             public ArrayLump( ValveBspFile bspFile, LumpType type )
             {
@@ -119,16 +119,21 @@ namespace SourceUtils
             
             private volatile bool _firstRequest = true;
 
+            protected override Type StructType => typeof( T );
+
             public StructArrayLump( ValveBspFile bspFile, LumpType type )
                 : base( bspFile, type ) { }
 
             private void EnsureLoaded()
             {
+                if ( _array != null ) return;
+
                 lock ( this )
                 {
-                    if ( _array != null ) return;
-                    _array = new T[Length];
-                    BspFile.ReadLumpValues( LumpType, 0, _array, 0, Length );
+                    var array = new T[Length];
+                    BspFile.ReadLumpValues( LumpType, 0, array, 0, Length );
+
+                    _array = array;
                 }
             }
 
